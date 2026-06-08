@@ -418,3 +418,41 @@ footer {
 
     opacity: 0.7;
 }
+
+#toast {
+
+    position: fixed;
+
+    bottom: 30px;
+
+    right: 30px;
+
+    background-color: #16a34a;
+
+    color: white;
+
+    padding: 15px 25px;
+
+    border-radius: 12px;
+
+    font-weight: bold;
+
+    opacity: 0;
+
+    transform: translateY(20px);
+
+    transition:
+        opacity 0.3s ease,
+        transform 0.3s ease;
+
+    pointer-events: none;
+
+    z-index: 9999;
+}
+
+#toast.show {
+
+    opacity: 1;
+
+    transform: translateY(0);
+}

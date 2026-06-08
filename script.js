@@ -213,6 +213,11 @@ const analyticsContainer =
         "analytics-container"
     );
 
+const toast =
+    document.getElementById(
+        "toast"
+    );
+
 function renderPatients(patientsList) {
 
     patientsContainer.innerHTML = "";
@@ -237,10 +242,15 @@ function renderPatients(patientsList) {
                 </p>
 
                 <button
-                    class="edit-btn"
-                    onclick="editPatient(${patient.id})"
+                    onclick="
+                        openEditPatient(
+                            ${patient.id}
+                        )
+                    "
                 >
-                    Edit
+
+                    Edit Patient
+
                 </button>
 
                 <button
@@ -289,6 +299,10 @@ function deletePatient(id) {
     );
 
     savePatients();
+
+    showToast(
+        `✓ ${patientName.value} Deleted`
+    );
 
     sortPatients();
 
@@ -454,6 +468,7 @@ patientForm.addEventListener(
     submitButton.textContent =
     "Add Patient";
 
+
     } 
     
     else {
@@ -466,6 +481,10 @@ patientForm.addEventListener(
 
 
     savePatients();
+
+    showToast(
+    `✓ ${patientName.value} Added`
+);
 
     renderPatients(
       patients
@@ -791,8 +810,8 @@ function saveNotes(id) {
         
     savePatients();
 
-    alert(
-        "Notes Saved"
+    showToast(
+        "✓ Notes Saved"
     );
 
 }
@@ -840,8 +859,8 @@ function saveVitals(id) {
 
     renderChart(patients);
 
-    alert(
-        "Vitals Saved"
+    showToast(
+        "✓ Vitals Saved"
     );
 
 }
@@ -1192,6 +1211,10 @@ function addMedication(id) {
 
     savePatients();
 
+    showToast(
+    `${medication} Added`
+);
+
     openPatient(id);
 
 }
@@ -1215,8 +1238,76 @@ function removeMedication(
 
     savePatients();
 
+   showToast(
+    `${medication} removed`
+);
     openPatient(
         patientId
     );
+
+}
+
+function showToast(message) {
+
+    toast.textContent =
+        message;
+
+    toast.classList.add(
+        "show"
+    );
+
+    setTimeout(
+        () => {
+
+            toast.classList.remove(
+                "show"
+            );
+
+        },
+
+        2000
+
+    );
+
+}
+
+function openEditPatient(id) {
+
+    const patient =
+        patients.find(
+            patient =>
+                patient.id === id
+        );
+
+    document.getElementById(
+        "edit-name"
+    ).value =
+        patient.name;
+
+    document.getElementById(
+        "edit-room"
+    ).value =
+        patient.room;
+
+    document.getElementById(
+        "edit-diagnosis"
+    ).value =
+        patient.diagnosis;
+
+    document.getElementById(
+        "edit-status"
+    ).value =
+        patient.status;
+
+    editingPatientId =
+        id;
+
+    document
+        .getElementById(
+            "edit-modal"
+        )
+        .classList.remove(
+            "hidden-modal"
+        );
 
 }
