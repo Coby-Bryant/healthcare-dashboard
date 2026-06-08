@@ -17,11 +17,64 @@
 
         <p>Patient Management System</p>
 
-        <button id="theme-toggle">
+        <div id="page-controls">
 
-            Toggle Theme
+            <button
+                id="theme-toggle"
+                type="button"
+            >
 
-        </button>
+                Toggle Theme
+
+            </button>
+
+            <div
+                id="page-size-control"
+                aria-label="Page size"
+            >
+
+                <span class="page-size-label">
+                    Page Size
+                </span>
+
+                <div
+                    class="page-size-options"
+                    role="group"
+                    aria-label="Page size options"
+                >
+
+                    <button
+                        type="button"
+                        class="page-size-btn"
+                        data-page-size="normal"
+                        aria-pressed="true"
+                    >
+                        A
+                    </button>
+
+                    <button
+                        type="button"
+                        class="page-size-btn"
+                        data-page-size="large"
+                        aria-pressed="false"
+                    >
+                        A+
+                    </button>
+
+                    <button
+                        type="button"
+                        class="page-size-btn"
+                        data-page-size="xlarge"
+                        aria-pressed="false"
+                    >
+                        A++
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
 
     </header>
 
@@ -132,6 +185,12 @@
             class="modal-content"
         >
 
+            <span
+                id="close-edit-modal"
+            >
+                x
+            </span>
+
             <h2>
                 Edit Patient
             </h2>
@@ -168,10 +227,9 @@
 
             <button
                 id="save-edit-btn"
+                onclick="savePatientEdit()"
             >
-
                 Save Changes
-
             </button>
 
         </div>
@@ -182,14 +240,14 @@
 
     </div>
 
+    <footer>
+
+        Built by Coby Bryant
+
+    </footer>
+
     <script src="script.js"></script>
 
 </body>
-
-<footer>
-
-    Built by Coby Bryant
-
-</footer>
 
 </html>

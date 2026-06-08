@@ -1,9 +1,387 @@
-let patients =
-    JSON.parse(
-        localStorage.getItem(
-            "patients"
+function escapeHtml(value) {
+    if (value == null) {
+        return "";
+    }
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function loadPatients() {
+    try {
+        const stored =
+            localStorage.getItem("patients");
+
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch (error) {
+        console.warn("Could not load saved patients:", error);
+    }
+
+    return null;
+}
+
+const emptyVitalValue = "N/A";
+
+function normalizeVitals(vitals = {}) {
+
+    const source =
+        vitals || {};
+
+    return {
+
+        bp:
+            source.bp ?? "",
+
+        map:
+            source.map ??
+            source.Map ??
+            "",
+
+        hr:
+            source.hr ?? "",
+
+        spo2:
+            source.spo2 ?? "",
+
+        temp:
+            source.temp ?? "",
+
+        savedAt:
+            source.savedAt || ""
+
+    };
+
+}
+
+function hasVitals(vitals) {
+
+    return [
+        "bp",
+        "map",
+        "hr",
+        "spo2",
+        "temp"
+    ].some(
+        key =>
+            String(
+                vitals?.[key] ?? ""
+            ).trim() !== ""
+    );
+
+}
+
+function ensureVitalsHistory(patient) {
+
+    if (!patient) {
+        return [];
+    }
+
+    if (!Array.isArray(patient.vitalsHistory)) {
+        patient.vitalsHistory = [];
+    }
+
+    patient.vitalsHistory =
+        patient.vitalsHistory
+            .map(normalizeVitals)
+            .filter(hasVitals);
+
+    const currentVitals =
+        normalizeVitals(patient.vitals);
+
+    if (
+        hasVitals(currentVitals) &&
+        patient.vitalsHistory.length === 0
+    ) {
+        patient.vitalsHistory.push(
+            currentVitals
+        );
+    }
+
+    const latestVitals =
+        patient.vitalsHistory[
+            patient.vitalsHistory.length - 1
+        ] || currentVitals;
+
+    patient.vitals =
+        normalizeVitals(latestVitals);
+
+    return patient.vitalsHistory;
+
+}
+
+function getVitalsHistory(patient) {
+
+    return ensureVitalsHistory(patient);
+
+}
+
+function parseVitalNumber(value) {
+
+    const number =
+        Number.parseFloat(value);
+
+    return Number.isFinite(number)
+        ? number
+        : null;
+
+}
+
+function averageVitalNumber(
+    vitalsHistory,
+    key,
+    decimals = 0
+) {
+
+    const values =
+        vitalsHistory
+            .map(
+                vitals =>
+                    parseVitalNumber(
+                        vitals[key]
+                    )
+            )
+            .filter(
+                value =>
+                    value !== null
+            );
+
+    if (values.length === 0) {
+        return emptyVitalValue;
+    }
+
+    const average =
+        values.reduce(
+            (sum, value) =>
+                sum + value,
+            0
+        ) / values.length;
+
+    return decimals > 0
+        ? average.toFixed(decimals)
+        : String(Math.round(average));
+
+}
+
+function averageBloodPressure(vitalsHistory) {
+
+    const values =
+        vitalsHistory
+            .map(vitals => {
+
+                const match =
+                    String(vitals.bp || "")
+                        .match(
+                            /^\s*(\d+)\s*\/\s*(\d+)\s*$/
+                        );
+
+                if (!match) {
+                    return null;
+                }
+
+                return {
+                    systolic:
+                        Number(match[1]),
+                    diastolic:
+                        Number(match[2])
+                };
+
+            })
+            .filter(Boolean);
+
+    if (values.length === 0) {
+        return emptyVitalValue;
+    }
+
+    const systolic =
+        values.reduce(
+            (sum, value) =>
+                sum + value.systolic,
+            0
+        ) / values.length;
+
+    const diastolic =
+        values.reduce(
+            (sum, value) =>
+                sum + value.diastolic,
+            0
+        ) / values.length;
+
+    return `${Math.round(systolic)}/${Math.round(diastolic)}`;
+
+}
+
+function calculateVitalAverages(patient) {
+
+    const vitalsHistory =
+        getVitalsHistory(patient);
+
+    return {
+        bp:
+            averageBloodPressure(vitalsHistory),
+        map:
+            averageVitalNumber(vitalsHistory, "map"),
+        hr:
+            averageVitalNumber(vitalsHistory, "hr"),
+        spo2:
+            averageVitalNumber(vitalsHistory, "spo2"),
+        temp:
+            averageVitalNumber(vitalsHistory, "temp", 1),
+        count:
+            vitalsHistory.length
+    };
+
+}
+
+function renderVitalMetric(label, value) {
+
+    return `
+        <div class="vital-metric">
+            <span>${escapeHtml(value)}</span>
+            <small>${escapeHtml(label)}</small>
+        </div>
+    `;
+
+}
+
+function renderAverageVitalsGrid(patient, className) {
+
+    const averages =
+        calculateVitalAverages(patient);
+
+    return `
+        <div class="${className}">
+            ${renderVitalMetric("BP", averages.bp)}
+            ${renderVitalMetric("MAP", averages.map)}
+            ${renderVitalMetric("HR", averages.hr)}
+            ${renderVitalMetric("SpO2", averages.spo2)}
+            ${renderVitalMetric("Temp", averages.temp)}
+        </div>
+    `;
+
+}
+
+function renderPatientAverageVitals(patient) {
+
+    const averages =
+        calculateVitalAverages(patient);
+
+    return `
+        <div class="patient-card-vitals">
+            <div class="patient-card-vitals-title">
+                Average Vitals
+            </div>
+
+            ${renderAverageVitalsGrid(
+                patient,
+                "patient-card-vitals-grid"
+            )}
+
+            <div class="patient-card-vitals-count">
+                ${averages.count} saved
+            </div>
+        </div>
+    `;
+
+}
+
+function formatSavedAt(value, fallback) {
+
+    if (!value) {
+        return fallback;
+    }
+
+    const date =
+        new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return fallback;
+    }
+
+    return date.toLocaleString(
+        [],
+        {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
+        }
+    );
+
+}
+
+function renderVitalsHistory(patient) {
+
+    const vitalsHistory =
+        getVitalsHistory(patient);
+
+    if (vitalsHistory.length === 0) {
+        return `
+            <p class="empty-vitals">
+                No saved vitals yet.
+            </p>
+        `;
+    }
+
+    return vitalsHistory
+        .slice()
+        .reverse()
+        .map(
+            (vitals, index) => {
+
+                const isBaseline =
+                    vitalsHistory.length - index === 1;
+
+                return `
+                    <div class="vitals-history-item">
+                        <strong>
+                            ${escapeHtml(
+                                formatSavedAt(
+                                    vitals.savedAt,
+                                    isBaseline
+                                        ? "Baseline"
+                                        : "Saved Vitals"
+                                )
+                            )}
+                        </strong>
+
+                        <div class="vitals-history-grid">
+                            ${renderVitalMetric(
+                                "BP",
+                                vitals.bp || emptyVitalValue
+                            )}
+                            ${renderVitalMetric(
+                                "MAP",
+                                vitals.map || emptyVitalValue
+                            )}
+                            ${renderVitalMetric(
+                                "HR",
+                                vitals.hr || emptyVitalValue
+                            )}
+                            ${renderVitalMetric(
+                                "SpO2",
+                                vitals.spo2 || emptyVitalValue
+                            )}
+                            ${renderVitalMetric(
+                                "Temp",
+                                vitals.temp || emptyVitalValue
+                            )}
+                        </div>
+                    </div>
+                `;
+
+            }
         )
-    ) || [
+        .join("");
+
+}
+
+let patients = loadPatients() || [
 
     {
         id: 1,
@@ -26,7 +404,7 @@ let patients =
 
         bp: "122/80",
 
-        Map: 95,
+        map: 95,
 
         hr: 78,
 
@@ -58,7 +436,7 @@ let patients =
 
         bp: "105/77",
 
-        Map: 79,
+        map: 79,
 
         hr: 94,
 
@@ -90,7 +468,7 @@ let patients =
 
         bp: "128/76",
 
-        Map: 93,
+        map: 93,
 
         hr: 78,
 
@@ -123,7 +501,7 @@ let patients =
 
         bp: "147/85",
 
-        Map: 104,
+        map: 104,
 
         hr: 63,
 
@@ -137,7 +515,9 @@ let patients =
     
 ];
 
-console.log(patients);
+patients.forEach(
+    ensureVitalsHistory
+);
 
 const patientModal =
     document.getElementById(
@@ -175,11 +555,6 @@ const statsContainer =
 const patientForm =
     document.getElementById(
         "patient-form"
-    );
-
-const submitButton =
-    patientForm.querySelector(
-        "button"
     );
 
 const patientName =
@@ -222,51 +597,7 @@ function renderPatients(patientsList) {
 
     patientsContainer.innerHTML = "";
 
-    patientsList.forEach((patient, index) => {
-
-        patientsContainer.innerHTML += `
-            <div 
-                class="patient-card"
-                onclick="openPatient(${patient.id})"
-            >
-                <h3>${patient.name}</h3>
-                <p>Room:${patient.room}</p>
-                <p>Diagnosis:${patient.diagnosis}</p>
-                <p>
-                    Status:
-
-                    <span class="status ${patient.status.toLowerCase()}">
-                        ${patient.status}
-                    </span> 
-                    
-                </p>
-
-                <button
-                    onclick="
-                        openEditPatient(
-                            ${patient.id}
-                        )
-                    "
-                >
-
-                    Edit Patient
-
-                </button>
-
-                <button
-                    class="delete-btn"
-                    onclick="deletePatient(${patient.id})"
-                >
-                    Delete
-                </button>
-
-            </div>
-        `;
-    });
-
-    if (
-    patientsList.length === 0
-    ) {
+    if (patientsList.length === 0) {
 
         patientsContainer.innerHTML = `
 
@@ -286,6 +617,61 @@ function renderPatients(patientsList) {
 
         return;
     }
+
+    patientsList.forEach((patient) => {
+
+        ensureVitalsHistory(patient);
+
+        const averageVitalsMarkup =
+            renderPatientAverageVitals(patient);
+
+        patientsContainer.innerHTML += `
+            <div
+                class="patient-card"
+                onclick="openPatient(${patient.id})"
+            >
+                <div class="patient-card-header">
+                    <h3>${escapeHtml(patient.name)}</h3>
+
+                    <div class="patient-card-actions">
+                        <button
+                            class="edit-btn"
+                            onclick="
+                                event.stopPropagation();
+                                openEditPatient(${patient.id});
+                            "
+                        >
+                            Edit Patient
+                        </button>
+
+                        <button
+                            class="delete-btn"
+                            onclick="
+                                event.stopPropagation();
+                                deletePatient(${patient.id});
+                            "
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+
+                <p>Room:${escapeHtml(patient.room)}</p>
+                <p>Diagnosis:${escapeHtml(patient.diagnosis)}</p>
+                <p>
+                    Status:
+
+                    <span class="status ${escapeHtml(patient.status.toLowerCase())}">
+                        ${escapeHtml(patient.status)}
+                    </span>
+
+                </p>
+
+                ${averageVitalsMarkup}
+
+            </div>
+        `;
+    });
 }
 
 renderPatients(patients);
@@ -294,6 +680,11 @@ sortPatients();
 
 function deletePatient(id) {
 
+    const deletedPatient =
+        patients.find(
+            patient => patient.id === id
+        );
+
     patients = patients.filter(
         patient => patient.id !== id
     );
@@ -301,7 +692,7 @@ function deletePatient(id) {
     savePatients();
 
     showToast(
-        `✓ ${patientName.value} Deleted`
+        `✓ ${deletedPatient?.name || "Patient"} Deleted`
     );
 
     sortPatients();
@@ -324,39 +715,10 @@ function deletePatient(id) {
 
 }
 
-function editPatient(id) {
-
-    const patient =
-        patients.find(
-            patient =>
-                patient.id === id
-        );
-
-    patientName.value =
-        patient.name;
-
-    patientRoom.value =
-        patient.room;
-
-    patientDiagnosis.value =
-        patient.diagnosis;
-
-    patientStatus.value =
-        patient.status;
-
-    editingPatientId = id;
-
-   submitButton.textContent =
-    "Save Changes"; 
-
-}
-
 const searchInput =
     document.getElementById(
         "search-input"
     );
-
-console.log(searchInput);
 
 searchInput.addEventListener(
     "input", 
@@ -410,13 +772,13 @@ patientForm.addEventListener(
             id: Date.now(),
 
             name:
-                patientName.value,
+                patientName.value.trim(),
 
             room:
-                patientRoom.value,
+                patientRoom.value.trim(),
 
             diagnosis:
-                patientDiagnosis.value,
+                patientDiagnosis.value.trim(),
 
             status:
                 patientStatus.value,
@@ -432,58 +794,30 @@ patientForm.addEventListener(
 
                 bp: "",
 
+                map: "",
+
                 hr: "",
 
                 spo2: "",
 
                 temp: ""
 
-            }
+            },
+
+            vitalsHistory: []
 
     };
-
-    if (editingPatientId) {
-
-    const patient =
-        patients.find(
-            patient =>
-                patient.id ===
-                editingPatientId
-        );
-
-    patient.name =
-        patientName.value;
-
-    patient.room =
-        patientRoom.value;
-
-    patient.diagnosis =
-        patientDiagnosis.value;
-
-    patient.status =
-        patientStatus.value;
-
-    editingPatientId = null;
-
-    submitButton.textContent =
-    "Add Patient";
-
-
-    } 
-    
-    else {
 
     patients.push(
         newPatient
     );
 
-    }
-
+    sortPatients();
 
     savePatients();
 
     showToast(
-    `✓ ${patientName.value} Added`
+    `✓ ${newPatient.name} Added`
 );
 
     renderPatients(
@@ -606,24 +940,42 @@ function sortPatients() {
 }
 
 function openPatient(id) {
-    console.log("Clicked patient ID:", id);
 
     const patient =
         patients.find(
             patient =>
                 patient.id === id
         );
-    console.log("Found patient:", patient);
+
+    if (!patient) {
+        return;
+    }
+
+    ensureVitalsHistory(patient);
+
+    const mapValue =
+        patient.vitals?.map ??
+        patient.vitals?.Map ??
+        "";
+
+    const vitalsAverageMarkup =
+        renderAverageVitalsGrid(
+            patient,
+            "modal-vitals-average-grid"
+        );
+
+    const vitalsHistoryMarkup =
+        renderVitalsHistory(patient);
 
     modalDetails.innerHTML = `
 
     <div class="patient-header">
 
-        <h2>${patient.name}</h2>
+        <h2>${escapeHtml(patient.name)}</h2>
 
         <span class="status-badge">
 
-            ${patient.status}
+            ${escapeHtml(patient.status)}
 
         </span>
 
@@ -633,70 +985,92 @@ function openPatient(id) {
 
         <h3>Patient Information</h3>
 
-        <p><strong>Room:</strong> ${patient.room}</p>
+        <p><strong>Room:</strong> ${escapeHtml(patient.room)}</p>
 
-        <p><strong>Diagnosis:</strong> ${patient.diagnosis}</p>
+        <p><strong>Diagnosis:</strong> ${escapeHtml(patient.diagnosis)}</p>
 
-        <p><strong>Status:</strong> ${patient.status}</p>
+        <p><strong>Status:</strong> ${escapeHtml(patient.status)}</p>
 
-        <p><strong>Age:</strong> ${patient.age || "Unknown"}</p>
+        <p><strong>Age:</strong> ${escapeHtml(patient.age || "Unknown")}</p>
 
     </div>
 
-    <p><strong>Room:</strong> ${patient.room}</p>
-
-    <p><strong>Diagnosis:</strong> ${patient.diagnosis}</p>
-
-    <p><strong>Status:</strong> ${patient.status}</p>
-
-    <p><strong>Age:</strong> ${patient.age || "Age Unknown"}</p>
-
-    <div class="modal-section">
+    <div class="modal-section vitals-section">
 
         <h3>Vital Signs</h3>
 
-        <label>Blood Pressure</label>
+        <div class="vitals-layout">
 
-        <input
-            id="bp-input"
-            value="${patient.vitals?.bp || ""}"
-        >
+            <div class="vitals-entry">
 
-        <label>MAP</label>
+                <label>Blood Pressure</label>
 
-        <input
-            id="map-input"
-            value="${patient.vitals?.map || ""}"
-        >
+                <input
+                    id="bp-input"
+                    value="${escapeHtml(patient.vitals?.bp || "")}"
+                >
 
-        <label>Heart Rate</label>
+                <label>MAP</label>
 
-        <input
-            id="hr-input"
-            value="${patient.vitals?.hr || ""}"
-        >
+                <input
+                    id="map-input"
+                    value="${escapeHtml(mapValue)}"
+                >
 
-        <label>SpO₂</label>
+                <label>Heart Rate</label>
 
-        <input
-            id="spo2-input"
-            value="${patient.vitals?.spo2 || ""}"
-        >
+                <input
+                    id="hr-input"
+                    value="${escapeHtml(patient.vitals?.hr || "")}"
+                >
 
-        <label>Temperature</label>
+                <label>SpO₂</label>
 
-        <input
-            id="temp-input"
-            value="${patient.vitals?.temp || ""}"
-        >
+                <input
+                    id="spo2-input"
+                    value="${escapeHtml(patient.vitals?.spo2 || "")}"
+                >
 
-        <button
-            onclick="saveVitals(${patient.id})"
-        >
+                <label>Temperature</label>
 
-            Save Vitals
+                <input
+                    id="temp-input"
+                    value="${escapeHtml(patient.vitals?.temp || "")}"
+                >
 
-        </button>
+                <button
+                    onclick="saveVitals(${patient.id})"
+                >
+
+                    Save Vitals
+
+                </button>
+
+            </div>
+
+            <div class="vitals-review">
+
+                <div class="vitals-average-summary">
+
+                    <h4>Averages</h4>
+
+                    ${vitalsAverageMarkup}
+
+                </div>
+
+                <div class="vitals-history-summary">
+
+                    <h4>Previous Saved Vitals</h4>
+
+                    <div class="vitals-history-list">
+                        ${vitalsHistoryMarkup}
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
     </div>
 
     <div class="modal-section">
@@ -711,14 +1085,14 @@ function openPatient(id) {
             `
             <li class="medication-item">
 
-                ${med}
+                ${escapeHtml(med)}
 
                 <button
                     class="remove-med-btn"
                     onclick="
                         removeMedication(
                             ${patient.id},
-                            '${med}'
+                            ${JSON.stringify(med)}
                         )
                     "
                 >
@@ -755,11 +1129,7 @@ function openPatient(id) {
         <textarea
         id="patient-notes"
         rows="5"
-    >
-
-        ${patient.notes || ""}
-
-        </textarea>
+    >${escapeHtml(patient.notes || "")}</textarea>
 
         <button
         onclick="saveNotes(${patient.id})"
@@ -788,9 +1158,33 @@ closeModal.addEventListener(
     }
 );
 
-function saveNotes(id) {    
+const editModal =
+    document.getElementById(
+        "edit-modal"
+    );
 
-    console.log("Saving notes for:", id);
+const closeEditModalButton =
+    document.getElementById(
+        "close-edit-modal"
+    );
+
+closeEditModalButton.addEventListener(
+    "click",
+    closeEditModal
+);
+
+editModal.addEventListener(
+    "click",
+    (event) => {
+
+        if (event.target === editModal) {
+            closeEditModal();
+        }
+
+    }
+);
+
+function saveNotes(id) {
 
     const patient =
         patients.find(
@@ -798,15 +1192,14 @@ function saveNotes(id) {
                 patient.id === id
         );
 
-    console.log("Found patient:", patient);
-
+    if (!patient) {
+        return;
+    }
 
     patient.notes =
         document.getElementById(
             "patient-notes"
         ).value;
-    
-    console.log("New notes:", patient.notes);
         
     savePatients();
 
@@ -824,46 +1217,182 @@ function saveVitals(id) {
                 patient.id === id
         );
 
-    patient.vitals = {
+    if (!patient) {
+        return;
+    }
+
+    const savedVitals = {
 
         bp:
             document.getElementById(
                 "bp-input"
-            ).value,
+            ).value.trim(),
 
         map:
             document.getElementById(
                 "map-input"
-            ).value,
+            ).value.trim(),
 
         hr:
             document.getElementById(
                 "hr-input"
-            ).value,
+            ).value.trim(),
 
         spo2:
             document.getElementById(
                 "spo2-input"
-            ).value,
+            ).value.trim(),
 
         temp:
             document.getElementById(
                 "temp-input"
-            ).value
+            ).value.trim(),
+
+        savedAt:
+            new Date().toISOString()
 
     };
 
+    if (!hasVitals(savedVitals)) {
+
+        showToast(
+            "Add vitals before saving"
+        );
+
+        return;
+
+    }
+
+    patient.vitals =
+        savedVitals;
+
+    if (!Array.isArray(patient.vitalsHistory)) {
+        patient.vitalsHistory = [];
+    }
+
+    patient.vitalsHistory.push(
+        savedVitals
+    );
+
     savePatients();
+
+    renderPatients(patients);
 
     renderAnalytics(patients);
 
     renderChart(patients);
+
+    openPatient(id);
 
     showToast(
         "✓ Vitals Saved"
     );
 
 }
+
+const THEME_STORAGE_KEY = "theme";
+const PAGE_SIZE_STORAGE_KEY = "page-size";
+const pageSizeOptions = [
+    "normal",
+    "large",
+    "xlarge"
+];
+
+function applyTheme(theme) {
+
+    document.body.classList.toggle(
+        "light-mode",
+        theme === "light"
+    );
+
+}
+
+function saveTheme(theme) {
+
+    localStorage.setItem(
+        THEME_STORAGE_KEY,
+        theme
+    );
+
+}
+
+function getSavedTheme() {
+
+    const savedTheme =
+        localStorage.getItem(
+            THEME_STORAGE_KEY
+        );
+
+    return savedTheme === "light"
+        ? "light"
+        : "dark";
+
+}
+
+function applyPageSize(pageSize) {
+
+    const size =
+        pageSizeOptions.includes(pageSize)
+            ? pageSize
+            : "normal";
+
+    document.body.classList.toggle(
+        "page-size-large",
+        size === "large"
+    );
+
+    document.body.classList.toggle(
+        "page-size-xlarge",
+        size === "xlarge"
+    );
+
+    document
+        .querySelectorAll(
+            "[data-page-size]"
+        )
+        .forEach(button => {
+
+            const isActive =
+                button.dataset.pageSize === size;
+
+            button.classList.toggle(
+                "active",
+                isActive
+            );
+
+            button.setAttribute(
+                "aria-pressed",
+                String(isActive)
+            );
+
+        });
+
+}
+
+function savePageSize(pageSize) {
+
+    localStorage.setItem(
+        PAGE_SIZE_STORAGE_KEY,
+        pageSize
+    );
+
+}
+
+function getSavedPageSize() {
+
+    const savedPageSize =
+        localStorage.getItem(
+            PAGE_SIZE_STORAGE_KEY
+        );
+
+    return pageSizeOptions.includes(savedPageSize)
+        ? savedPageSize
+        : "normal";
+
+}
+
+applyTheme(getSavedTheme());
+applyPageSize(getSavedPageSize());
 
 const themeToggle =
     document.getElementById(
@@ -874,153 +1403,46 @@ themeToggle.addEventListener(
     "click",
     () => {
 
-        document.body.classList.toggle(
-            "light-mode"
+        const isLightMode =
+            document.body.classList.toggle(
+                "light-mode"
+            );
+
+        saveTheme(
+            isLightMode
+                ? "light"
+                : "dark"
         );
 
     }
 );
 
+document
+    .querySelectorAll(
+        "[data-page-size]"
+    )
+    .forEach(button => {
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                const pageSize =
+                    button.dataset.pageSize;
+
+                applyPageSize(pageSize);
+
+                savePageSize(pageSize);
+
+            }
+        );
+
+    });
+
 function renderAnalytics() {
 
-    const avgHR =
+    analyticsContainer.innerHTML = "";
 
-        (
-            patients.reduce(
-                (sum, patient) =>
-
-                    sum +
-
-                    Number(
-                        patient.vitals?.hr || 0
-                    ),
-
-                0
-            )
-
-            /
-
-            patients.length
-
-        ).toFixed(0);
-
-    const avgSpo2 =
-
-        (
-            patients.reduce(
-                (sum, patient) =>
-
-                    sum +
-
-                    Number(
-                        patient.vitals?.spo2 || 0
-                    ),
-
-                0
-            )
-
-            /
-
-            patients.length
-
-        ).toFixed(0);
-
-    const avgTemp =
-
-        (
-            patients.reduce(
-                (sum, patient) =>
-
-                    sum +
-
-                    Number(
-                        patient.vitals?.temp || 0
-                    ),
-
-                0
-            )
-
-            /
-
-            patients.length
-
-        ).toFixed(1);
-
-    analyticsContainer.innerHTML = `
-
-        <div class="analytics-card">
-
-            <h3 id="avg-hr">
-                0
-            </h3>
-
-            <p>Average HR</p>
-
-        </div>
-
-        <div class="analytics-card">
-
-            <h3 id="avg-spo2">
-                0
-            </h3>
-
-            <p>Average SpO₂</p>
-
-        </div>
-
-        <div class="analytics-card">
-
-            <h3 id="avg-temp">
-                0
-            </h3>
-
-            <p>Average Temp</p>
-
-        </div>
-
-        <div class="analytics-card">
-
-            <h3 id="total-patients">
-                0
-            </h3>
-
-            <p>Total Patients</p>
-
-        </div>
-
-    `;
-
-    animateValue(
-
-    document.getElementById(
-        "avg-hr"
-    ),
-
-    0,
-
-    Number(
-        avgHR
-    ),
-
-    1000
-
-);
-
-animateValue(
-
-    document.getElementById(
-        "avg-spo2"
-    ),
-
-    0,
-
-    Number(
-        avgSpo2
-    ),
-
-    1000
-
-);
 }
 
 renderAnalytics(patients);
@@ -1030,24 +1452,22 @@ const chartContainer =
         "chart-container"
     );
 
-console.log(chartContainer);
+function renderChart(patientList = patients) {
 
-function renderChart() {
-
-    console.log("renderChart running");
+    const barWidthPerPatient = 36;
 
     const critical =
-        patients.filter(
+        patientList.filter(
             p => p.status === "Critical"
         ).length;
 
     const observation =
-        patients.filter(
+        patientList.filter(
             p => p.status === "Observation"
         ).length;
 
     const stable =
-        patients.filter(
+        patientList.filter(
             p => p.status === "Stable"
         ).length;
 
@@ -1065,7 +1485,7 @@ function renderChart() {
 
             <div
                 class="chart-bar critical-bar"
-                style="width:${critical * 60}px"
+                style="width:${critical * barWidthPerPatient}px"
             ></div>
 
         </div>
@@ -1078,7 +1498,7 @@ function renderChart() {
 
             <div
                 class="chart-bar observation-bar"
-                style="width:${observation * 60}px"
+                style="width:${observation * barWidthPerPatient}px"
             ></div>
 
         </div>
@@ -1091,23 +1511,23 @@ function renderChart() {
 
             <div
                 class="chart-bar stable-bar"
-                style="width:${stable * 60}px"
+                style="width:${stable * barWidthPerPatient}px"
             ></div>
 
         </div>
 
     `;
 
-    console.log(chartContainer.innerHTML);
 }
 
-renderChart();
+renderChart(patients);
 
 function animateValue(
     element,
     start,
     end,
-    duration
+    duration,
+    decimals = 0
 ) {
 
     let startTime = null;
@@ -1141,9 +1561,7 @@ function animateValue(
 
         const value =
 
-            Math.floor(
-
-                progress *
+            progress *
 
                 (
                     end -
@@ -1152,12 +1570,12 @@ function animateValue(
 
                 +
 
-                start
-
-            );
+                start;
 
         element.textContent =
-            value;
+            decimals > 0
+                ? value.toFixed(decimals)
+                : Math.floor(value);
 
         if (
             progress < 1
@@ -1184,6 +1602,10 @@ function addMedication(id) {
             patient =>
                 patient.id === id
         );
+
+    if (!patient) {
+        return;
+    }
 
     const medicationInput =
         document.getElementById(
@@ -1229,6 +1651,10 @@ function removeMedication(
             patient =>
                 patient.id === patientId
         );
+
+    if (!patient?.medications) {
+        return;
+    }
 
     patient.medications =
         patient.medications.filter(
@@ -1279,6 +1705,10 @@ function openEditPatient(id) {
                 patient.id === id
         );
 
+    if (!patient) {
+        return;
+    }
+
     document.getElementById(
         "edit-name"
     ).value =
@@ -1309,5 +1739,81 @@ function openEditPatient(id) {
         .classList.remove(
             "hidden-modal"
         );
+
+}
+
+function closeEditModal() {
+
+    document
+        .getElementById(
+            "edit-modal"
+        )
+        .classList.add(
+            "hidden-modal"
+        );
+
+    editingPatientId = null;
+
+}
+
+function savePatientEdit() {
+
+    if (editingPatientId == null) {
+        return;
+    }
+
+    const patient =
+        patients.find(
+            patient =>
+                patient.id ===
+                editingPatientId
+        );
+
+    if (!patient) {
+        closeEditModal();
+        return;
+    }
+
+    patient.name =
+        document.getElementById(
+            "edit-name"
+        ).value.trim();
+
+    patient.room =
+        document.getElementById(
+            "edit-room"
+        ).value.trim();
+
+    patient.diagnosis =
+        document.getElementById(
+            "edit-diagnosis"
+        ).value.trim();
+
+    patient.status =
+        document.getElementById(
+            "edit-status"
+        ).value;
+
+    savePatients();
+
+    sortPatients();
+
+    renderPatients(
+        patients
+    );
+
+    renderStats(
+        patients
+    );
+
+    renderAnalytics(patients);
+
+    renderChart(patients);
+
+    closeEditModal();
+
+    showToast(
+        "✓ Patient Updated"
+    );
 
 }
