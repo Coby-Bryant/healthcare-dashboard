@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Healthcare Dashboard</title>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Healthcare Dashboard</h1>
+
+        <p>Patient Management System</p>
+
+        <button id="theme-toggle">
+
+            Toggle Theme
+
+        </button>
+
+    </header>
+
+    <section>
+        <div id="stats-container">
+
+        </div>  
+    </section>
+
+    <section>
+
+        <div id="chart-container">
+
+        </div>
+
+    </section>
+
+    <section>
+
+        <form id="patient-form">
+            <input
+                type="text"
+                id="patient-name"
+                placeholder="Patient Name"
+                required
+            >
+
+            <input
+                type="text"
+                id="patient-room"
+                placeholder="Room"
+                required
+            >
+
+            <input
+                type="text"
+                id="patient-diagnosis"
+                placeholder="Diagnosis"
+                required
+            >
+
+            <select 
+                id="patient-status"
+            >
+                <option>Stable</option>
+                <option>Observation</option>
+                <option>Critical</option>
+            </select>
+
+            <button type="submit">
+                Add Patient
+            </button>
+        </form>
+    </section>
+
+    <section>
+
+        <div id="analytics-container">
+
+        </div>
+
+    </section>
+
+    <section>
+        <input
+            type="text"
+            id="search-input"
+            placeholder="Search patients..."
+        >
+    </section>
+
+    <section>
+        <div id="patients-container">
+        
+        </div>
+    </section>
+
+    <div
+        id="patient-modal"
+        class="hidden-modal"
+    >
+
+        <div class="modal-content"
+
+        >
+           <span
+                id="close-modal"
+            >
+                x
+            </span>
+
+            <div
+                id="modal-details"
+            >
+
+            </div>
+
+        </div>
+    
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+
+<footer>
+
+    Built by Coby Bryant
+
+</footer>
+
+</html>
